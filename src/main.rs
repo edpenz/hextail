@@ -18,6 +18,20 @@ impl VtColor {
     const GREY: VtColor = VtColor { vt_code: 90 };
 }
 
+struct VtCommand {
+    vt_command: &'static str,
+}
+
+impl fmt::Display for VtCommand {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        write!(formatter, "\x1b[{}", self.vt_command)
+    }
+}
+
+impl VtCommand {
+    const CLEAR_LEFT: VtCommand = VtCommand { vt_command: "1K" };
+}
+
 fn color_for_ascii(ascii_code: &u8) -> VtColor {
     match ascii_code {
         0x00 => VtColor::RED,            // Null
@@ -33,6 +47,9 @@ fn main() {
 
     let mut buffer = [0 as u8; 16];
     let mut offset: usize = 0;
+
+    let mut previous_line: Option<[u8; 16]> = None;
+    let mut previous_line_collapsed: bool = false;
 
     loop {
         // Read input.
@@ -52,11 +69,30 @@ fn main() {
 
         let is_line_dirty = old_offset % 16 != 0;
         let is_line_finished = offset % 16 == 0;
+        let is_line_duplicate = previous_line.is_some_and(|v| v == buffer[..offset - line_offset]);
+
+        // Three possible macro states for finished lines:
+        if is_line_duplicate {
+            // TODO: Only clear if line's dirty
+            // * Line is an initial duplicate
+            if previous_line_collapsed {
+                write!(stdout, "{}\r", VtCommand::CLEAR_LEFT).unwrap();
+            // * Line is a subsequent duplicate
+            } else {
+                write!(stdout, "{}\r*\n", VtCommand::CLEAR_LEFT).unwrap();
+            }
+            previous_line_collapsed = true;
+            stdout.flush().unwrap();
+            continue;
+        // * Line is not a duplicate
+        } else if is_line_finished {
+            previous_line_collapsed = false;
+        }
 
         // Reset cursor position to redraw line.
         if is_line_dirty {
             write!(stdout, "\r").unwrap()
-        };
+        }
 
         // Print line offset as hex: "XXXXXXXX  "
         write!(stdout, "{}{:08x}  ", VtColor::DEFAULT, line_offset).unwrap();
@@ -87,7 +123,8 @@ fn main() {
 
         // Wrap to next line if done with this one.
         if is_line_finished {
-            write!(stdout, "\n").unwrap()
+            write!(stdout, "\n").unwrap();
+            previous_line = Some(buffer[..offset - line_offset].try_into().unwrap());
         }
 
         stdout.flush().unwrap();
