@@ -29,7 +29,9 @@ impl fmt::Display for VtCommand {
 }
 
 impl VtCommand {
-    const CLEAR_LEFT: VtCommand = VtCommand { vt_command: "1K" };
+    const CLEAR_RIGHT: VtCommand = VtCommand { vt_command: "0K" };
+    // const CLEAR_LEFT: VtCommand = VtCommand { vt_command: "1K" };
+    // const CLEAR_LINE: VtCommand = VtCommand { vt_command: "2K" };
 }
 
 fn color_for_ascii(ascii_code: &u8) -> VtColor {
@@ -71,27 +73,28 @@ fn main() {
         let is_line_finished = offset % 16 == 0;
         let is_line_duplicate = previous_line.is_some_and(|v| v == buffer[..offset - line_offset]);
 
-        // Three possible macro states for finished lines:
-        if is_line_duplicate {
-            // TODO: Only clear if line's dirty
-            // * Line is an initial duplicate
-            if previous_line_collapsed {
-                write!(stdout, "{}\r", VtCommand::CLEAR_LEFT).unwrap();
-            // * Line is a subsequent duplicate
-            } else {
-                write!(stdout, "{}\r*\n", VtCommand::CLEAR_LEFT).unwrap();
-            }
-            previous_line_collapsed = true;
-            stdout.flush().unwrap();
-            continue;
-        // * Line is not a duplicate
-        } else if is_line_finished {
-            previous_line_collapsed = false;
-        }
-
         // Reset cursor position to redraw line.
         if is_line_dirty {
             write!(stdout, "\r").unwrap()
+        }
+
+        // Alternative printing logic for duplicate line collapsing
+        if is_line_duplicate {
+            if !previous_line_collapsed {
+                if is_line_dirty {
+                    write!(stdout, "*{}\n", VtCommand::CLEAR_RIGHT).unwrap();
+                } else {
+                    write!(stdout, "*\n").unwrap();
+                }
+            } else if is_line_dirty {
+                write!(stdout, "{}", VtCommand::CLEAR_RIGHT).unwrap();
+            }
+
+            previous_line_collapsed = true;
+            stdout.flush().unwrap();
+            continue;
+        } else if is_line_finished {
+            previous_line_collapsed = false;
         }
 
         // Print line offset as hex: "XXXXXXXX  "
