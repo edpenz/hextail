@@ -21,8 +21,8 @@ impl VtColor {
 fn color_for_ascii(ascii_code: &u8) -> VtColor {
     match ascii_code {
         0x00 => VtColor::RED,            // Null
-        0x01...0x20 => VtColor::MAGENTA, // Control codes
-        0x7f...0xff => VtColor::GREY,    // Extended ASCII
+        0x01..=0x20 => VtColor::MAGENTA, // Control codes
+        0x7f..=0xff => VtColor::GREY,    // Extended ASCII
         _ => VtColor::DEFAULT,           // Printable ASCII
     }
 }
@@ -79,7 +79,7 @@ fn main() {
         write!(stdout, "{}|", VtColor::DEFAULT).unwrap();
         for byte in buffer[..offset - line_offset].iter() {
             match byte {
-                0x20...0x7e => write!(stdout, "{}{}", color_for_ascii(byte), *byte as char).unwrap(),
+                0x20..=0x7e => write!(stdout, "{}{}", color_for_ascii(byte), *byte as char).unwrap(),
                 _ => write!(stdout, "{}.", color_for_ascii(byte)).unwrap(),
             }
         }
